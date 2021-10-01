@@ -1,0 +1,4 @@
+#!/bin/bash
+
+#docker buildx build --tag spryker/nginx-brotli:latest --platform linux/amd64,linux/arm64 .
+docker build --tag spryker/nginx-brotli:latest --platform linux/amd64 .
