@@ -1,5 +1,6 @@
-ARG NGINX_VERSION=1.25.5
-ARG NGX_BROTLI_COMMIT=25f86f0bac1101b6512135eac5f93c49c63609e3
+ARG ALPINE_VERSION=3.23
+ARG NGINX_VERSION=1.30.0
+ARG NGX_BROTLI_COMMIT=a71f9312c2deb28875acc7bacfdd5695a111aa53
 ARG CONFIG="\
 		--prefix=/etc/nginx \
 		--sbin-path=/usr/sbin/nginx \
@@ -47,7 +48,7 @@ ARG CONFIG="\
 		--add-module=/usr/src/ngx_brotli \
 	"
 
-FROM alpine:3.19
+FROM alpine:$ALPINE_VERSION
 LABEL maintainer="NGINX Docker Maintainers <docker-maint@nginx.com>"
 
 ARG NGINX_VERSION
@@ -64,37 +65,57 @@ RUN \
 		zlib-dev \
 		linux-headers \
 		curl \
-		gnupg1 \
+		gnupg \
 		libxslt-dev \
 		gd-dev \
-		geoip-dev \
-	&& apk add --no-cache --virtual .brotli-build-deps \
+		geoip-dev
+RUN \
+	 apk add --no-cache --virtual .brotli-build-deps \
+		tar \
 		autoconf \
 		libtool \
 		automake \
 		git \
 		g++ \
-		cmake
+		cmake \
+		bash
 
-COPY nginx/nginx.pub /tmp/nginx.pub
+SHELL ["/bin/bash", "-x", "-c"]
+
+COPY gpg/ /tmp/gpg
+
+#RUN \
+#	mkdir -p /usr/src/ngx_brotli \
+#	&& cd /usr/src/ngx_brotli \
+#	&& git init \
+#	&& git remote add origin https://github.com/google/ngx_brotli.git \
+#	&& git fetch --depth 1 origin $NGX_BROTLI_COMMIT \
+#	&& git checkout --recurse-submodules -q FETCH_HEAD \
+#	&& git submodule update --init --depth 1 \
+#	&& cd .. \
+#	&& curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
+#	&& curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
+#        && sha512sum nginx.tar.gz nginx.tar.gz.asc \
+#	&& export GNUPGHOME="$(mktemp -d)" \
+#	&& gpg --import /tmp/gpg/* \
+#	&& gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
+#	&& mkdir -p /usr/src \
+#	&& tar -zxC /usr/src -f nginx.tar.gz
 
 RUN \
-	mkdir -p /usr/src/ngx_brotli \
-	&& cd /usr/src/ngx_brotli \
-	&& git init \
-	&& git remote add origin https://github.com/google/ngx_brotli.git \
-	&& git fetch --depth 1 origin $NGX_BROTLI_COMMIT \
-	&& git checkout --recurse-submodules -q FETCH_HEAD \
-	&& git submodule update --init --depth 1 \
-	&& cd .. \
-	&& curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
-	&& curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc  -o nginx.tar.gz.asc \
-        && sha512sum nginx.tar.gz nginx.tar.gz.asc \
-	&& export GNUPGHOME="$(mktemp -d)" \
-	&& gpg --import /tmp/nginx.pub \
-	&& gpg --batch --verify nginx.tar.gz.asc nginx.tar.gz \
-	&& mkdir -p /usr/src \
-	&& tar -zxC /usr/src -f nginx.tar.gz
+    mkdir -p /usr/src/ngx_brotli \
+    && cd /usr/src/ngx_brotli \
+    && git init \
+    && git remote add origin https://github.com/google/ngx_brotli.git \
+    && git fetch --depth 1 origin $NGX_BROTLI_COMMIT \
+    && git checkout --recurse-submodules -q FETCH_HEAD \
+    && git submodule update --init --depth 1 \
+    && cd .. \
+    && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
+    && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc -o nginx.tar.gz.asc \
+    && sha512sum nginx.tar.gz nginx.tar.gz.asc \
+    && mkdir -p /usr/src \
+    && tar -zxC /usr/src -f nginx.tar.gz
 
 RUN \
 	cd /usr/src/nginx-$NGINX_VERSION \
@@ -132,7 +153,7 @@ RUN \
 			| xargs -r apk info --installed \
 			| sort -u > /tmp/runDeps.txt
 
-FROM alpine:3.19
+FROM alpine:$ALPINE_VERSION
 ARG NGINX_VERSION
 
 COPY --from=0 /tmp/runDeps.txt /tmp/runDeps.txt
@@ -154,11 +175,12 @@ RUN \
 	&& ln -sf /dev/stdout /var/log/nginx/access.log \
 	&& ln -sf /dev/stderr /var/log/nginx/error.log
 
-COPY nginx/nginx.conf /etc/nginx/nginx.conf
-COPY nginx/nginx.vh.default.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.vh.default.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80 443
 
-STOPSIGNAL SIGTERM
+STOPSIGNAL SIGQUIT
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["nginx"]
+CMD ["-g", "daemon off;"]
