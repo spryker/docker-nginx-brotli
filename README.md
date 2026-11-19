@@ -3,3 +3,5 @@ This project is based on Alpine Linux, the official nginx image and an nginx mod
 
 # How to use this image
 As this project is based on the official [nginx image](https://hub.docker.com/_/nginx/) look for instructions there. In addition to the standard configuration directives, you'll be able to use the brotli module specific ones, see [here for official documentation](https://github.com/google/ngx_brotli#configuration-directives)
+
+The image also includes the [headers-more module](https://github.com/openresty/headers-more-nginx-module) and ships `/etc/nginx/conf.d/hide-server-header.conf`, which removes the `Server` response header (`more_clear_headers Server;`). To send the header again, delete that file or override it.

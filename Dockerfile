@@ -1,6 +1,8 @@
 ARG ALPINE_VERSION=3.23
-ARG NGINX_VERSION=1.30.0
-ARG NGX_BROTLI_COMMIT=a71f9312c2deb28875acc7bacfdd5695a111aa53
+ARG NGINX_VERSION=1.30.7
+ARG NGX_BROTLI_COMMIT=53e0fb55f250f48fe80c0ddbf6c0f7103cdbaae1
+# openresty/headers-more-nginx-module v0.41 — used to remove the Server response header
+ARG HEADERS_MORE_COMMIT=21066f7eed72e4de4f6ec47b93e8d5f36c38b84a
 ARG CONFIG="\
 		--prefix=/etc/nginx \
 		--sbin-path=/usr/sbin/nginx \
@@ -46,6 +48,7 @@ ARG CONFIG="\
 		--with-file-aio \
 		--with-http_v2_module \
 		--add-module=/usr/src/ngx_brotli \
+		--add-module=/usr/src/headers-more-nginx-module \
 	"
 
 FROM alpine:$ALPINE_VERSION
@@ -53,6 +56,7 @@ LABEL maintainer="NGINX Docker Maintainers <docker-maint@nginx.com>"
 
 ARG NGINX_VERSION
 ARG NGX_BROTLI_COMMIT
+ARG HEADERS_MORE_COMMIT
 ARG CONFIG
 
 RUN \
@@ -110,6 +114,12 @@ RUN \
     && git fetch --depth 1 origin $NGX_BROTLI_COMMIT \
     && git checkout --recurse-submodules -q FETCH_HEAD \
     && git submodule update --init --depth 1 \
+    && mkdir -p /usr/src/headers-more-nginx-module \
+    && cd /usr/src/headers-more-nginx-module \
+    && git init \
+    && git remote add origin https://github.com/openresty/headers-more-nginx-module.git \
+    && git fetch --depth 1 origin $HEADERS_MORE_COMMIT \
+    && git checkout -q FETCH_HEAD \
     && cd .. \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz -o nginx.tar.gz \
     && curl -fSL https://nginx.org/download/nginx-$NGINX_VERSION.tar.gz.asc -o nginx.tar.gz.asc \
@@ -177,6 +187,8 @@ RUN \
 
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY nginx.vh.default.conf /etc/nginx/conf.d/default.conf
+# Not named default.conf on purpose: consumers (e.g. spryker/docker-sdk) overwrite conf.d/default.conf
+COPY hide-server-header.conf /etc/nginx/conf.d/hide-server-header.conf
 
 EXPOSE 80 443
 
